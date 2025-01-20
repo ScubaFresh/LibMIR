@@ -22,18 +22,6 @@ numpy
 matplotlib
 ```
 
-## Installation
-
-1. Clone this repository:
-```
-git clone https://github.com/yourusername/audio-analysis-tool.git
-cd audio-analysis-tool
-```
-
-2. Install dependencies:
-```
-pip install -r requirements.txt
-```
 
 ## Usage
 
