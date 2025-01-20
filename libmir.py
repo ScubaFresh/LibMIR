@@ -25,9 +25,9 @@ def extract_audio_features(signal: np.ndarray, sample_rate: int) -> Dict:
     timbre_features = librosa.feature.mfcc(y=signal, sr=sample_rate, n_mfcc=13)
     
     brightness = librosa.feature.spectral_centroid(y=signal, sr=sample_rate)[0]
-    
-    raw_volume = librosa.feature.rms(y=signal)[0]
-    volume_envelope = (raw_volume - np.min(raw_volume)) / (np.max(raw_volume) - np.min(raw_volume))
+    raw_volume = librosa.feature.rms(y=signal)[0]    
+    volume_range = np.max(raw_volume) - np.min(raw_volume)
+    volume_envelope = raw_volume if volume_range == 0 else (raw_volume - np.min(raw_volume)) / volume_range
     
     note_onsets = librosa.onset.onset_strength(y=signal, sr=sample_rate)
     
