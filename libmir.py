@@ -6,6 +6,10 @@ from typing import Tuple, Dict
 import os
 from pathlib import Path
 import argparse
+from tqdm import tqdm
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 def load_audio(audio_path: str, target_sr: int = 22050) -> Tuple[np.ndarray, int]:
     if not os.path.exists(audio_path):
@@ -15,23 +19,35 @@ def load_audio(audio_path: str, target_sr: int = 22050) -> Tuple[np.ndarray, int
     return signal, sample_rate
 
 def extract_audio_features(signal: np.ndarray, sample_rate: int) -> Dict:
+    pbar = tqdm(total=9, desc="Extracting Audio features")
+
     mel_spectrogram = librosa.feature.melspectrogram(y=signal, sr=sample_rate)
     mel_db_scale = librosa.power_to_db(mel_spectrogram, ref=np.max)
-    
+    pbar.update(1)    
+
     music_tempo, beat_positions = librosa.beat.beat_track(y=signal, sr=sample_rate)
-    
+    pbar.update(1)
+
     pitch_classes = librosa.feature.chroma_stft(y=signal, sr=sample_rate)
+    pbar.update(1)
     
     timbre_features = librosa.feature.mfcc(y=signal, sr=sample_rate, n_mfcc=13)
+    pbar.update(1)
     
     brightness = librosa.feature.spectral_centroid(y=signal, sr=sample_rate)[0]
+    pbar.update(1)
     raw_volume = librosa.feature.rms(y=signal)[0]    
+    pbar.update(1)
     volume_range = np.max(raw_volume) - np.min(raw_volume)
+    pbar.update(1)
     volume_envelope = raw_volume if volume_range == 0 else (raw_volume - np.min(raw_volume)) / volume_range
-    
+    pbar.update(1)    
     note_onsets = librosa.onset.onset_strength(y=signal, sr=sample_rate)
-    
+    pbar.update(1)    
     signal_transitions = librosa.feature.zero_crossing_rate(signal)[0]
+    pbar.update(1)
+
+    pbar.close()
     
     return {
         'mel_spectrogram': mel_db_scale,
@@ -88,27 +104,35 @@ def create_analysis_plots(features: Dict, sample_rate: int, save_path: str = Non
     else:
         plt.show()
 
-def analyze_music_file(file_path: str, output_dir: str = None) -> None:
+def analyze_music_file(file_path: str, output_dir: str = None, no_plot: bool = False) -> None:
+    
     print(f"Starting analysis of: {Path(file_path).name}")
     
     signal, sample_rate = load_audio(file_path)
     features = extract_audio_features(signal, sample_rate)
     
-    print("\nMusic Analysis Results:")
-    print(f"╔{'═' * 40}╗")
-    print(f"║ Tempo: {features['tempo']:.1f} BPM {' ' * 24}║")
-    print(f"║ Average Volume: {np.mean(features['volume']):.3f} {' ' * 19}║")
-    print(f"║ Average Brightness: {np.mean(features['brightness']):.1f} Hz {' ' * 12}║")
-    print(f"║ Signal Complexity: {np.mean(features['transitions']):.3f} {' ' * 15}║")
-    print(f"╚{'═' * 40}╝")
+    console = Console()
+    table = Table(box=box.DOUBLE, show_header=False, show_edge=True)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
     
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        plot_path = os.path.join(output_dir, f"{Path(file_path).stem}_analysis.png")
-        create_analysis_plots(features, sample_rate, plot_path)
-        print(f"\nAnalysis plots saved to: {plot_path}")
-    else:
-        create_analysis_plots(features, sample_rate)
+    # Add rows with the analysis results
+    table.add_row("Tempo", f"{features['tempo']:.1f} BPM")
+    table.add_row("Average Volume", f"{np.mean(features['volume']):.3f}")
+    table.add_row("Average Brightness", f"{np.mean(features['brightness']):.1f} Hz")
+    table.add_row("Signal Complexity", f"{np.mean(features['transitions']):.3f}")
+    
+    print("\nMusic Analysis Results:")
+    console.print(table)
+    
+    if not no_plot:
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            plot_path = os.path.join(output_dir, f"{Path(file_path).stem}_analysis.png")
+            create_analysis_plots(features, sample_rate, plot_path)
+            print(f"\nAnalysis plots saved to: {plot_path}")
+        else:
+            create_analysis_plots(features, sample_rate)
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze audio files using librosa')
@@ -121,18 +145,7 @@ def main():
                        help='Skip generating plots')
     args = parser.parse_args()
     
-    if not args.no_plot:
-        analyze_music_file(args.input_file, args.output)
-    else:
-        signal, sr = load_audio(args.input_file, args.sample_rate)
-        features = extract_audio_features(signal, sr)
-        print("\nMusic Analysis Results:")
-        print(f"╔{'═' * 40}╗")
-        print(f"║ Tempo: {features['tempo']:.1f} BPM {' ' * 24}║")
-        print(f"║ Average Volume: {np.mean(features['volume']):.3f} {' ' * 19}║")
-        print(f"║ Average Brightness: {np.mean(features['brightness']):.1f} Hz {' ' * 12}║")
-        print(f"║ Signal Complexity: {np.mean(features['transitions']):.3f} {' ' * 15}║")
-        print(f"╚{'═' * 40}╝")
+    analyze_music_file(args.input_file, args.output, args.no_plot)
 
 if __name__ == "__main__":
     main()
